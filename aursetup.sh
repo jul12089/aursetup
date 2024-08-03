@@ -1,62 +1,47 @@
 #!/bin/bash
 
-# Function to display a progress bar
-progress_bar() {
-    local duration=$1
-    local steps=$2
-    local progress=0
-    local step_size=$((duration / steps))
-    
-    printf "[%-${steps}s] " ""
-
-    for ((i = 0; i < steps; i++)); do
-        echo -ne "\033[1D#"
-        sleep $step_size
-    done
-    
-    echo -e "\033[1D(Done)"
+# Function to check if a package is installed
+is_installed() {
+    pacman -Qi $1 &> /dev/null
 }
 
-echo "Start"
+# Function to install git if not installed
+install_git() {
+    if ! is_installed git; then
+        echo "Git is not installed. Installing git..."
+        sudo pacman -S --needed git
+    else
+        echo "Git is already installed."
+    fi
+}
 
-# Receive and sign Chaotic key
-echo "Receiving and signing Chaotic key..."
-{
-    sudo pacman-key --recv-key 3056513887B78AEB --keyserver keyserver.ubuntu.com &> /dev/null
-    sudo pacman-key --lsign-key 3056513887B78AEB &> /dev/null
-} &> /dev/null &
+# Function to install yay from AUR
+install_yay() {
+    echo "Cloning yay from AUR..."
+    git clone https://aur.archlinux.org/yay.git /tmp/yay
+    cd /tmp/yay
+    echo "Building and installing yay..."
+    makepkg -si
+    cd ~
+    echo "Cleaning up..."
+    rm -rf /tmp/yay
+}
 
-wait
+# Function to install chaotic AUR
+install_chaotic_aur() {
+    echo "Adding chaotic AUR repository..."
+    sudo pacman-key --recv-key FBA220DFC880C036 --keyserver keyserver.ubuntu.com
+    sudo pacman-key --lsign-key FBA220DFC880C036
+    sudo pacman -U --needed 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst'
+    sudo pacman -U --needed 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst'
+    echo -e "\n[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist" | sudo tee -a /etc/pacman.conf
+    echo "Updating package database..."
+    sudo pacman -Sy
+}
 
-# Install chaotic-keyring
-echo "Installing chaotic-keyring..."
-{
-    sudo pacman -U 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-keyring.pkg.tar.zst' &> /dev/null
-} &> /dev/null &
+# Main script execution
+install_git
+install_yay
+install_chaotic_aur
 
-wait
-
-# Install chaotic-mirrorlist
-echo "Installing chaotic-mirrorlist..."
-{
-    sudo pacman -U 'https://cdn-mirror.chaotic.cx/chaotic-aur/chaotic-mirrorlist.pkg.tar.zst' &> /dev/null
-} &> /dev/null &
-
-wait
-
-# Add chaotic-aur to pacman.conf
-echo "Adding chaotic-aur to pacman.conf..."
-sudo sh -c 'echo -e "[chaotic-aur]\nInclude = /etc/pacman.d/chaotic-mirrorlist" >> /etc/pacman.conf'
-
-# Update pacman database
-echo "Updating pacman database..."
-{
-    sudo pacman -Sy &> /dev/null
-} &> /dev/null &
-echo "Installing yay (an aur helper)..."
-{
-    sudo pacman -S yay &> /dev/null
-} &> /dev/null &
-wait
-
-echo "Done!"
+echo "Installation completed successfully!"
